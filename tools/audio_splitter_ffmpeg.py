@@ -37,35 +37,21 @@ def concatenate_audio_files_ffmpeg(file_paths, output_path):
         concat_list_filename, '-c', 'copy', output_path
     ]
     subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    os.remove(concat_list_filename)
+    # os.remove(concat_list_filename)
 
 def audio_separator_chunk(chunk_path):
     import subprocess
     import os
+    from spleeter.separator import Separator
 
     base_name = os.path.splitext(os.path.basename(chunk_path))[0]
     output_dir = f'output_audio/{base_name}'
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
-    cmd = [
-        'spleeter', 'separate', '-i', chunk_path, '-p', 'spleeter:2stems',
-        '-o', 'output_audio/'
-    ]
-    subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-def audio_separator_chunk(chunk_path):
-    import subprocess
-    import os
+    separator = Separator('spleeter:2stems')
+    separator.separate_to_file(chunk_path, output_dir, filename_format="{instrument}.{codec}")
 
-    base_name = os.path.splitext(os.path.basename(chunk_path))[0]
-    output_dir = f'output_audio/{base_name}'
-    # Ensure output directory exists
-    os.makedirs(output_dir, exist_ok=True)
-    cmd = [
-        'spleeter', 'separate', '-i', chunk_path, '-p', 'spleeter:2stems',
-        '-o', 'output_audio/'
-    ]
-    subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 def process_full_audio_with_spleeter(audio_path):
     audio_file_name = os.path.splitext(os.path.basename(audio_path))[0]
@@ -88,8 +74,14 @@ def process_full_audio_with_spleeter(audio_path):
 
     # Step 4: Concatenate the separated chunks using ffmpeg
     concatenate_audio_files_ffmpeg(vocals_files, f'output_audio/{audio_file_name}_vocals.wav')
+    print(f'Created output_audio/{audio_file_name}_vocals.wav')
     concatenate_audio_files_ffmpeg(accompaniment_files, f'output_audio/{audio_file_name}_accompaniment.wav')
+    print(f'Created output_audio/{audio_file_name}_accompaniment.wav')
 
     # Clean up temporary chunk files (optional)
     for chunk_path in chunk_paths:
         os.remove(chunk_path)
+
+if __name__ == '__main__':
+    audio_path = 'original_audios/xSh7PuWAxXU.wav'
+    process_full_audio_with_spleeter(audio_path)

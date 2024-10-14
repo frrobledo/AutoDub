@@ -1,54 +1,60 @@
 from tools.audio_synthesis import *
 from tools.transcriber import *
 from tools.audio_splitter_ffmpeg import *
-
+from tools.video_downloader import *
 
 if __name__ == '__main__':
     # Set the multiprocessing start method to 'spawn'
     multiprocessing.set_start_method('spawn')
 
+    # Download video
+    url = input("Enter YouTube URL: ")
+    video = video_download(url)
+
+    # # Extract audio
+    audio = audio_extractor(video)
 
     ## Load audio
-    original_audio_file = 'original_audios/C6RvwUsCFfw.wav'
-    original_audio_name = os.path.splitext(os.path.basename(original_audio_file))[0]
+    # audio = 'original_audios/C6RvwUsCFfw.wav'
+    original_audio_name = os.path.splitext(os.path.basename(audio))[0]
 
-    # Transcribe audio
-    # segments, detected_language = transcribe(original_audio_file)
-    # print(f"Audio transcribed. Detected language: {detected_language}")
+    ## Transcribe audio
+    segments, detected_language = transcribe(audio)
+    print(f"Audio transcribed. Detected language: {detected_language}")
 
-    # # Split audio file
-    # process_full_audio_with_spleeter(original_audio_file)
-    # print("Audio split")
+    ## Split audio file
+    process_full_audio_with_spleeter(audio)
+    print("Audio split")
 
-    # Translate each segment
-    # new_segments = []
-    # i = 0
-    # total_segments = len(segments)
-    # for segment in segments:
-    #     if len(segment['text']) > 0:
-    #         translated_text = translate_deepl(segment['text'], 'es', detected_language)
-    #     else:
-    #         translated_text = ''
-    #     new_segments.append({'id': segment['id'], 
-    #                         'seek': segment['seek'],
-    #                         'start': segment['start'],
-    #                         'end': segment['end'],
-    #                         'text': translated_text
-    #                         })
-    #     percentage = (i+1)/total_segments*100
-    #     # Print the progress 
-    #     print(f'Translation progress: {percentage:.2f}%')
-    #     i += 1
-    # print(f"Audio translated")
+    ## Translate each segment
+    new_segments = []
+    i = 0
+    total_segments = len(segments)
+    for segment in segments:
+        if len(segment['text']) > 0:
+            translated_text = translate_deepl(segment['text'], 'es', detected_language)
+        else:
+            translated_text = ''
+        new_segments.append({'id': segment['id'], 
+                            'seek': segment['seek'],
+                            'start': segment['start'],
+                            'end': segment['end'],
+                            'text': translated_text
+                            })
+        percentage = (i+1)/total_segments*100
+        # Print the progress 
+        print(f'Translation progress: {percentage:.2f}%')
+        i += 1
+    print(f"Audio translated")
 
-    # # save new_segments as a pickle for later loading
-    # import pickle
+    ## save new_segments as a pickle for later loading
+    import pickle
 
-    # with open('new_segments.pkl', 'wb') as f:
-    #     pickle.dump(new_segments, f)
-    # print("New segments saved")
+    with open('new_segments.pkl', 'wb') as f:
+        pickle.dump(new_segments, f)
+    print("New segments saved")
 
-    # Load new_segments from pickle
+    ## Load new_segments from pickle
     import pickle
     with open('new_segments.pkl', 'rb') as f:
         new_segments = pickle.load(f)
@@ -70,5 +76,17 @@ if __name__ == '__main__':
         segments=new_segments,
         synthesized_segments_paths=synthesized_segments_paths,
         background_audio_path=f'output_audio/{original_audio_name}_accompaniment.wav',
-        output_path=f'output_audio/{original_audio_name}-{target_lang_code}.wav'
+        output_path=f'final_output/{original_audio_name}-{target_lang_code}.wav'
     )
+
+    # Delete all content in output_audio folder
+    for filename in os.listdir('output_audio'):
+        file_path = os.path.join('output_audio', filename)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+    
+
+    # Mix old video file and new audio file
+    # video_path = f'downloads/{original_audio_name}.mp4'
+    audio_path = f'final_output/{original_audio_name}-{target_lang_code}.wav'
+    replace_audio_in_video(video, audio_path, f'final_output/{original_audio_name}-{target_lang_code}.mp4')

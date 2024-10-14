@@ -108,28 +108,19 @@ def synthesize_segments_in_parallel(segments, speaker_wav_path, target_language_
 
 
 def overlay_synthesized_speech(segments, synthesized_segments_paths, background_audio_path, output_path):
-    """
-    Overlay the synthesized speech segments onto the background audio.
-
-    Parameters
-    ----------
-    segments : list
-        A list of dictionaries containing the start and end times of each segment.
-    synthesized_segments_paths : list
-        A list of paths to the synthesized audio files, one for each segment.
-    background_audio_path : str
-        The path to the background audio file.
-    output_path : str
-        The path to the output audio file.
-
-    Returns
-    -------
-    None
-    """
     from pydub import AudioSegment
+    import numpy as np
+    import librosa
+    import soundfile as sf
+    import os
+    import tempfile
 
     # Load the background audio
     background_audio = AudioSegment.from_file(background_audio_path)
+
+    # Ensure the background audio is in the correct format
+    background_audio = background_audio.set_channels(1)
+    background_audio = background_audio.set_frame_rate(22050)
 
     # Create an empty audio segment for the output
     output_audio = background_audio
@@ -139,21 +130,58 @@ def overlay_synthesized_speech(segments, synthesized_segments_paths, background_
         start_time_ms = int(segment['start'] * 1000)
         end_time_ms = int(segment['end'] * 1000)
 
-        # Load synthesized audio
-        synthesized_audio = AudioSegment.from_file(synthesized_path)
+        # Load synthesized audio using librosa
+        y_synth, sr_synth = librosa.load(synthesized_path, sr=None)
 
-        # Adjust the synthesized audio to match the duration of the original segment
-        segment_duration_ms = end_time_ms - start_time_ms
+        # Calculate the target duration in seconds
+        target_duration_sec = (end_time_ms - start_time_ms) / 1000.0
+
+        # Get the original duration of the synthesized audio
+        original_duration_sec = librosa.get_duration(y=y_synth, sr=sr_synth)
+
+        # Calculate the time-stretch rate
+        if original_duration_sec > 0 and target_duration_sec > 0:
+            rate = original_duration_sec / target_duration_sec
+        else:
+            rate = 1.0  # Avoid division by zero
+
+        # Time-stretch the synthesized audio to match the target duration
+        y_stretched = librosa.effects.time_stretch(y=y_synth, rate=rate)
+
+        # Ensure the stretched audio has the same sample rate as the background audio
+        y_stretched = librosa.resample(
+            y=y_stretched,
+            orig_sr=sr_synth,
+            target_sr=background_audio.frame_rate
+        )
+        sr_stretched = background_audio.frame_rate
+
+        # Ensure y_stretched is in the range -1.0 to 1.0
+        y_stretched = np.clip(y_stretched, -1.0, 1.0)
+
+        # Scale to int16 range and convert to int16
+        y_stretched_int16 = (y_stretched * 32767).astype(np.int16)
+
+        # Convert numpy array back to AudioSegment
+        synthesized_audio = AudioSegment(
+            y_stretched_int16.tobytes(),
+            frame_rate=sr_stretched,
+            sample_width=2,  # 16-bit audio
+            channels=1
+        )
+
+        # Adjust the synthesized audio to match the background audio format
         synthesized_audio = synthesized_audio.set_frame_rate(background_audio.frame_rate)
         synthesized_audio = synthesized_audio.set_channels(background_audio.channels)
         synthesized_audio = synthesized_audio.set_sample_width(background_audio.sample_width)
-        synthesized_audio = synthesized_audio[:segment_duration_ms]
 
-        # Overlay the synthesized audio onto the background audio
+        # Overlay the synthesized audio onto the background audio at the correct position
         output_audio = output_audio.overlay(synthesized_audio, position=start_time_ms)
 
     # Export the final audio
     output_audio.export(output_path, format="wav")
+
+
 
 import multiprocessing
 import os

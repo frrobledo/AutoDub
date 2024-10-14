@@ -5,3 +5,4 @@ pretrained_models/*
 tools/__pycache__/*
 new_segments.pkl
 *.wav
+*.mp4
