@@ -1,3 +1,7 @@
 downloads/*
 original_audios/*
-
+output_audio/*
+pretrained_models/*
+tools/__pycache__/*
+new_segments.pkl
+*.wav

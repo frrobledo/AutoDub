@@ -8,7 +8,6 @@ from transformers import MBartForConditionalGeneration, MBart50TokenizerFast
 import torch
 
 
-model = whisper.load_model('turbo')
 # Mapping from ISO 639-1 codes to MBART50 language codes
 language_code_mapping = {
     'ar': 'ar_AR',
@@ -56,11 +55,20 @@ def transcribe(audio):
     detected_language : str
         The detected language of the audio file in ISO 639-1 format.
     """
-    result = model.transcribe(audio)
+    model = whisper.load_model('turbo')
+
+    result = model.transcribe(audio, word_timestamps=True)
     
     transcribed_text = result['text']
     detected_language = result['language']
-    return transcribed_text, detected_language
+    segments = result['segments']
+
+    # Clean up model
+    del model 
+    torch.cuda.empty_cache()
+    return segments, detected_language
+
+    # return transcribed_text, detected_language
 
 def translate_deepl(text, target_language_code, source_language_code=None):
     """
@@ -206,3 +214,8 @@ if __name__ == '__main__':
     # translated_text = translate(transcribed_text, detected_language, target_lang_code)
     translated_text = translate_deepl(transcribed_text, target_lang_code, detected_language)
     print(f"Translated text: {translated_text[:500]}...")
+
+    # synthesize audio
+    from audio_synthesis import synthesize_speech
+    synthesize_speech(translated_text[:500], audio, target_lang_code)
+    print(f"Synthesized audio saved to output_audio")
