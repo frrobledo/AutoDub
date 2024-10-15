@@ -56,28 +56,6 @@ def prepare_full_segments_list(segments, total_duration):
 
 
 def process_segments(full_segments_list, synthesized_segments_paths, video_path, background_audio_path, output_dir):
-    """
-    Process each segment: adjust video speed and replace audio for speech segments,
-    and keep original speed for non-speech intervals.
-
-    Parameters
-    ----------
-    full_segments_list : list of dict
-        The list of all segments (speech and non-speech intervals).
-    synthesized_segments_paths : list of str
-        The list of paths to the synthesized audio files for speech segments.
-    video_path : str
-        The path to the original video file.
-    background_audio_path : str
-        The path to the background audio file (e.g., accompaniment audio).
-    output_dir : str
-        The directory to save the processed video segments.
-
-    Returns
-    -------
-    segment_video_paths : list of str
-        The list of paths to the processed video segment files.
-    """
     import os
     import subprocess
     from pydub import AudioSegment
@@ -87,24 +65,34 @@ def process_segments(full_segments_list, synthesized_segments_paths, video_path,
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
-    segment_num = 0
-    for segment in full_segments_list:
+    speech_segment_counter = 0  # Counter for speech segments
+    total_segments = len(full_segments_list)
+
+    for segment_num, segment in enumerate(full_segments_list):
+        progress = (segment_num / total_segments) * 100
         print(f'Processing segment: {segment_num}')
-        print(f"Process: {segment_num / len(full_segments_list) * 100:.2f}%")
-        segment_num += 1
+        print(f'Process: {progress:.2f}%')
 
         start = segment['start']
         end = segment['end']
         duration = end - start
         segment_type = segment['type']
-        segment_index = full_segments_list.index(segment)
+        segment_index = segment_num
 
         print(f"  Segment type: {segment_type}\n  Start: {start}\n  End: {end}\n  Duration: {duration}")
 
+        if duration <= 0:
+            print(f"Skipping segment with zero or negative duration: {segment_index}")
+            continue
+
         if segment_type == 'speech':
             # Speech segment
-            speech_index = segment['index']
-            synthesized_audio_path = synthesized_segments_paths[speech_index]
+            if speech_segment_counter >= len(synthesized_segments_paths):
+                print(f"Warning: No synthesized audio for speech segment index {speech_segment_counter}")
+                continue
+
+            synthesized_audio_path = synthesized_segments_paths[speech_segment_counter]
+            speech_segment_counter += 1
 
             # Get duration of synthesized audio
             synthesized_audio = AudioSegment.from_file(synthesized_audio_path)
@@ -112,10 +100,19 @@ def process_segments(full_segments_list, synthesized_segments_paths, video_path,
             synthesized_duration = synthesized_duration_ms / 1000.0  # Convert to seconds
 
             # Calculate speed ratio
-            if duration > 0:
+            if synthesized_duration > 0:
                 speed_ratio = duration / synthesized_duration
             else:
-                speed_ratio = 1.0  # Default to 1.0 if duration is zero
+                print(f"Warning: Synthesized audio has zero duration for segment {segment_index}")
+                speed_ratio = 1.0
+
+            # Clamp speed_ratio
+            # min_speed_ratio = 0.5
+            # max_speed_ratio = 2.0
+            # speed_ratio = max(min(speed_ratio, max_speed_ratio), min_speed_ratio)
+
+            print(f"  Synthesized duration: {synthesized_duration}")
+            print(f"  Speed ratio: {speed_ratio}")
 
             # Adjust video speed and replace audio
             output_segment_path = os.path.join(output_dir, f'segment_{segment_index:04d}.mp4')
@@ -130,9 +127,6 @@ def process_segments(full_segments_list, synthesized_segments_paths, video_path,
             )
             segment_video_paths.append(output_segment_path)
 
-            print(f"  Synthesized duration: {synthesized_duration}")
-            print(f"  Speed ratio: {speed_ratio}")
-
         elif segment_type == 'non-speech':
             # Non-speech interval
             output_segment_path = os.path.join(output_dir, f'segment_{segment_index:04d}.mp4')
@@ -146,6 +140,7 @@ def process_segments(full_segments_list, synthesized_segments_paths, video_path,
             segment_video_paths.append(output_segment_path)
 
     return segment_video_paths
+
 
 def adjust_video_speed_and_replace_audio(video_path, background_audio_path, start_time, duration, speed_ratio, synthesized_audio_path, output_path):
     """
@@ -375,8 +370,12 @@ def concatenate_segments(concat_file_path, output_video_path):
         '-c', 'copy',
         output_video_path
     ]
-    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
+    # subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if result.returncode != 0:
+        print("Error concatenating the videos:")
+        print(result.stderr)
+        raise RuntimeError("Failed to concatenate the videos.")
 
 def adjust_video_to_synthesized_audio(segments, synthesized_segments_paths, video_path, background_audio_path, output_video_path):
     """
