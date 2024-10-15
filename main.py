@@ -2,6 +2,7 @@ from tools.audio_synthesis import *
 from tools.transcriber import *
 from tools.audio_splitter_ffmpeg import *
 from tools.video_downloader import *
+from tools.video_editing import *
 
 if __name__ == '__main__':
     # Prepare folders
@@ -80,13 +81,26 @@ if __name__ == '__main__':
     print(f"Audio synthesized")
 
     # Overlay audio files together
-    overlay_synthesized_speech(
+    # overlay_synthesized_speech(
+    #     segments=new_segments,
+    #     synthesized_segments_paths=synthesized_segments_paths,
+    #     background_audio_path=f'output_audio/{original_audio_name}_accompaniment.wav',
+    #     output_path=f'final_output/{original_audio_name}-{target_lang_code}.wav'
+    # )
+    # print(f"Audio overlaid")
+
+
+    # Video editing
+    video_output = f'final_output/{original_audio_name}-{target_lang_code}.mp4'
+    background_audio = f'output_audio/{original_audio_name}_accompaniment.wav'
+
+    adjust_video_to_synthesized_audio(
         segments=new_segments,
         synthesized_segments_paths=synthesized_segments_paths,
-        background_audio_path=f'output_audio/{original_audio_name}_accompaniment.wav',
-        output_path=f'final_output/{original_audio_name}-{target_lang_code}.wav'
+        video_path=video,
+        background_audio_path=background_audio,
+        output_video_path=video_output
     )
-    print(f"Audio overlaid")
 
     # Delete all content in output_audio folder
     # for filename in os.listdir('output_audio'):
@@ -97,5 +111,5 @@ if __name__ == '__main__':
 
     # Mix old video file and new audio file
     # video_path = f'downloads/{original_audio_name}.mp4'
-    audio_path = f'final_output/{original_audio_name}-{target_lang_code}.wav'
-    replace_audio_in_video(video, audio_path, f'final_output/{original_audio_name}-{target_lang_code}.mp4')
+    # audio_path = f'final_output/{original_audio_name}-{target_lang_code}.wav'
+    # replace_audio_in_video(video, audio_path, f'final_output/{original_audio_name}-{target_lang_code}.mp4')

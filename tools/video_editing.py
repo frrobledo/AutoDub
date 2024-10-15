@@ -87,12 +87,19 @@ def process_segments(full_segments_list, synthesized_segments_paths, video_path,
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
+    segment_num = 0
     for segment in full_segments_list:
+        print(f'Processing segment: {segment_num}')
+        print(f"Process: {segment_num / len(full_segments_list) * 100:.2f}%")
+        segment_num += 1
+
         start = segment['start']
         end = segment['end']
         duration = end - start
         segment_type = segment['type']
         segment_index = full_segments_list.index(segment)
+
+        print(f"  Segment type: {segment_type}\n  Start: {start}\n  End: {end}\n  Duration: {duration}")
 
         if segment_type == 'speech':
             # Speech segment
@@ -123,6 +130,9 @@ def process_segments(full_segments_list, synthesized_segments_paths, video_path,
             )
             segment_video_paths.append(output_segment_path)
 
+            print(f"  Synthesized duration: {synthesized_duration}")
+            print(f"  Speed ratio: {speed_ratio}")
+
         elif segment_type == 'non-speech':
             # Non-speech interval
             output_segment_path = os.path.join(output_dir, f'segment_{segment_index:04d}.mp4')
@@ -140,27 +150,6 @@ def process_segments(full_segments_list, synthesized_segments_paths, video_path,
 def adjust_video_speed_and_replace_audio(video_path, background_audio_path, start_time, duration, speed_ratio, synthesized_audio_path, output_path):
     """
     Adjust the video speed and replace audio for a speech segment.
-
-    Parameters
-    ----------
-    video_path : str
-        The path to the original video file.
-    background_audio_path : str
-        The path to the background audio file.
-    start_time : float
-        The start time of the segment in seconds.
-    duration : float
-        The duration of the segment in seconds.
-    speed_ratio : float
-        The ratio of original duration to synthesized audio duration.
-    synthesized_audio_path : str
-        The path to the synthesized audio file.
-    output_path : str
-        The path to save the processed video segment.
-
-    Returns
-    -------
-    None
     """
     import subprocess
     import os
@@ -170,26 +159,38 @@ def adjust_video_speed_and_replace_audio(video_path, background_audio_path, star
     command = [
         'ffmpeg',
         '-y',
-        '-i', video_path,
         '-ss', str(start_time),
         '-t', str(duration),
-        '-c', 'copy',
+        '-i', video_path,
+        '-c:v', 'copy',
+        '-an',  # Disable audio
         temp_video_segment
     ]
-    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print("Extracting video segment...")
+    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if result.returncode != 0:
+        print("Error extracting video segment:")
+        print(result.stderr)
+        raise RuntimeError("Failed to extract video segment.")
 
     # Extract the background audio segment
     temp_audio_segment = f"{output_path}_temp_audio.wav"
     command = [
         'ffmpeg',
         '-y',
-        '-i', background_audio_path,
         '-ss', str(start_time),
         '-t', str(duration),
-        '-c', 'copy',
+        '-i', background_audio_path,
+        '-c:a', 'copy',
+        '-vn',  # Disable video
         temp_audio_segment
     ]
-    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print("Extracting background audio segment...")
+    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if result.returncode != 0:
+        print("Error extracting background audio segment:")
+        print(result.stderr)
+        raise RuntimeError("Failed to extract background audio segment.")
 
     # Adjust the speed of the video
     adjusted_video = f"{output_path}_adjusted_video.mp4"
@@ -198,15 +199,21 @@ def adjust_video_speed_and_replace_audio(video_path, background_audio_path, star
         '-y',
         '-i', temp_video_segment,
         '-filter:v', f"setpts={1/speed_ratio}*PTS",
-        '-an',
+        '-an',  # Ensure no audio is included
         adjusted_video
     ]
-    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print("Adjusting video speed...")
+    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if result.returncode != 0:
+        print("Error adjusting video speed:")
+        print(result.stderr)
+        raise RuntimeError("Failed to adjust video speed.")
 
     # Adjust the speed of the background audio
     adjusted_audio = f"{output_path}_adjusted_audio.wav"
 
     atempo_filters = generate_atempo_filters(speed_ratio)
+    print(f"Using atempo filters: {atempo_filters}")
 
     command = [
         'ffmpeg',
@@ -215,7 +222,12 @@ def adjust_video_speed_and_replace_audio(video_path, background_audio_path, star
         '-filter:a', atempo_filters,
         adjusted_audio
     ]
-    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print("Adjusting background audio speed...")
+    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if result.returncode != 0:
+        print("Error adjusting background audio speed:")
+        print(result.stderr)
+        raise RuntimeError("Failed to adjust background audio speed.")
 
     # Combine the adjusted video and synthesized audio
     command = [
@@ -228,13 +240,21 @@ def adjust_video_speed_and_replace_audio(video_path, background_audio_path, star
         '-shortest',
         output_path
     ]
-    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print("Combining adjusted video and synthesized audio...")
+    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if result.returncode != 0:
+        print("Error combining video and audio:")
+        print(result.stderr)
+        raise RuntimeError("Failed to combine video and audio.")
 
     # Clean up temporary files
-    os.remove(temp_video_segment)
-    os.remove(temp_audio_segment)
-    os.remove(adjusted_video)
-    os.remove(adjusted_audio)
+    for temp_file in [temp_video_segment, temp_audio_segment, adjusted_video, adjusted_audio]:
+        try:
+            os.remove(temp_file)
+        except OSError as e:
+            print(f"Error removing temporary file {temp_file}: {e}")
+
+
 
 def generate_atempo_filters(speed_ratio):
     """
@@ -388,10 +408,13 @@ def adjust_video_to_synthesized_audio(segments, synthesized_segments_paths, vide
     video.close()
 
     # Prepare full segments list
+    print("Preparing full segments list")
     full_segments_list = prepare_full_segments_list(segments, total_duration)
 
     # Process segments
+    print("Processing segments")
     output_dir = 'processed_segments'
+    os.makedirs(output_dir, exist_ok=True)
     segment_video_paths = process_segments(
         full_segments_list,
         synthesized_segments_paths,
@@ -405,6 +428,7 @@ def adjust_video_to_synthesized_audio(segments, synthesized_segments_paths, vide
     create_concat_file(segment_video_paths, concat_file_path)
 
     # Concatenate segments
+    print("Concatenating segments")
     concatenate_segments(concat_file_path, output_video_path)
 
     # Clean up temporary files
