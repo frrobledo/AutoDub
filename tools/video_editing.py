@@ -230,11 +230,13 @@ def adjust_video_speed_and_replace_audio(video_path, background_audio_path, star
         '-y',
         '-i', adjusted_video,
         '-i', synthesized_audio_path,
-        '-c:v', 'copy',
+        '-c:v', 'libx264',
         '-c:a', 'aac',
+        '-b:a', '192k',
         '-shortest',
         output_path
     ]
+
     print("Combining adjusted video and synthesized audio...")
     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode != 0:
@@ -327,7 +329,8 @@ def extract_video_segment(video_path, background_audio_path, start_time, duratio
 
 def create_concat_file(segment_video_paths, concat_file_path):
     """
-    Create a text file listing the video segments for FFmpeg concatenation.
+    Create a text file listing the video segments for FFmpeg concatenation,
+    including only files larger than a specified size.
 
     Parameters
     ----------
@@ -335,14 +338,17 @@ def create_concat_file(segment_video_paths, concat_file_path):
         The list of paths to the video segments.
     concat_file_path : str
         The path to save the concat file.
-
-    Returns
-    -------
-    None
     """
+    min_file_size_bytes = 300  # Minimum file size in bytes
+
     with open(concat_file_path, 'w') as f:
         for segment_path in segment_video_paths:
-            f.write(f"file '{os.path.abspath(segment_path)}'\n")
+            # Check if the file exists and is larger than the minimum size
+            if os.path.isfile(segment_path) and os.path.getsize(segment_path) > min_file_size_bytes:
+                f.write(f"file '{os.path.abspath(segment_path)}'\n")
+            else:
+                print(f"Excluding segment {segment_path} due to insufficient file size.")
+
 
 def concatenate_segments(concat_file_path, output_video_path):
     """
@@ -367,7 +373,10 @@ def concatenate_segments(concat_file_path, output_video_path):
         '-f', 'concat',
         '-safe', '0',
         '-i', concat_file_path,
-        '-c', 'copy',
+        '-c:v', 'libx264',
+        '-c:a', 'aac',
+        '-strict', 'experimental',
+        '-b:a', '192k',
         output_video_path
     ]
     # subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
