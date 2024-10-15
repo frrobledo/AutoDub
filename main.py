@@ -8,14 +8,15 @@ if __name__ == '__main__':
     multiprocessing.set_start_method('spawn')
 
     # Download video
-    url = input("Enter YouTube URL: ")
-    video = video_download(url)
+    # url = input("Enter YouTube URL: ")
+    # video = video_download(url)
+    video = "downloads/xSh7PuWAxXU.mp4"
 
     # # Extract audio
-    audio = audio_extractor(video)
+    # audio = audio_extractor(video)
 
     ## Load audio
-    # audio = 'original_audios/C6RvwUsCFfw.wav'
+    audio = 'original_audios/xSh7PuWAxXU.wav'
     original_audio_name = os.path.splitext(os.path.basename(audio))[0]
 
     ## Transcribe audio
@@ -27,32 +28,32 @@ if __name__ == '__main__':
     print("Audio split")
 
     ## Translate each segment
-    new_segments = []
-    i = 0
-    total_segments = len(segments)
-    for segment in segments:
-        if len(segment['text']) > 0:
-            translated_text = translate_deepl(segment['text'], 'es', detected_language)
-        else:
-            translated_text = ''
-        new_segments.append({'id': segment['id'], 
-                            'seek': segment['seek'],
-                            'start': segment['start'],
-                            'end': segment['end'],
-                            'text': translated_text
-                            })
-        percentage = (i+1)/total_segments*100
-        # Print the progress 
-        print(f'Translation progress: {percentage:.2f}%')
-        i += 1
-    print(f"Audio translated")
+    # new_segments = []
+    # i = 0
+    # total_segments = len(segments)
+    # for segment in segments:
+    #     if len(segment['text']) > 0:
+    #         translated_text = translate_deepl(segment['text'], 'es', detected_language)
+    #     else:
+    #         translated_text = ''
+    #     new_segments.append({'id': segment['id'], 
+    #                         'seek': segment['seek'],
+    #                         'start': segment['start'],
+    #                         'end': segment['end'],
+    #                         'text': translated_text
+    #                         })
+    #     percentage = (i+1)/total_segments*100
+    #     # Print the progress 
+    #     print(f'Translation progress: {percentage:.2f}%')
+    #     i += 1
+    # print(f"Audio translated")
 
     ## save new_segments as a pickle for later loading
-    import pickle
+    # import pickle
 
-    with open('new_segments.pkl', 'wb') as f:
-        pickle.dump(new_segments, f)
-    print("New segments saved")
+    # with open('new_segments.pkl', 'wb') as f:
+    #     pickle.dump(new_segments, f)
+    # print("New segments saved")
 
     ## Load new_segments from pickle
     import pickle
@@ -80,10 +81,10 @@ if __name__ == '__main__':
     )
 
     # Delete all content in output_audio folder
-    for filename in os.listdir('output_audio'):
-        file_path = os.path.join('output_audio', filename)
-        if os.path.isfile(file_path):
-            os.remove(file_path)
+    # for filename in os.listdir('output_audio'):
+    #     file_path = os.path.join('output_audio', filename)
+    #     if os.path.isfile(file_path):
+    #         os.remove(file_path)
     
 
     # Mix old video file and new audio file
