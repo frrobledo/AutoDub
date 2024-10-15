@@ -139,7 +139,7 @@ def overlay_synthesized_speech(segments, synthesized_segments_paths, background_
         synthesized_audio = AudioSegment.from_file(synthesized_path)
 
         # Trim silence from the synthesized audio
-        synthesized_audio = trim_silence(synthesized_audio)
+        synthesized_audio = trim_silence(synthesized_audio, silence_thresh=-16.0)
 
         # Adjust speed of the synthesized audio
         synthesized_audio = adjust_speed_to_fit_duration(
@@ -343,11 +343,15 @@ def adjust_speed_to_fit_duration(synthesized_audio, start_time_ms, end_time_ms, 
     current_duration_ms = len(synthesized_audio)
 
     # If the durations are the same, no adjustment is needed
-    if current_duration_ms == target_duration_ms:
+    if current_duration_ms == target_duration_ms or current_duration_ms == 0:
         return synthesized_audio
 
-    # Calculate the speed factor
-    speed = current_duration_ms / target_duration_ms
+    # Calculate the time-stretch ratio
+    if current_duration_ms != 0 and target_duration_ms != 0:
+        time_stretch_ratio = current_duration_ms / target_duration_ms
+    else:
+        time_stretch_ratio = 1.0
+    # time_stretch_ratio = target_duration_ms / current_duration_ms
 
     # Save synthesized_audio to a temporary file
     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_in_file:
@@ -357,33 +361,12 @@ def adjust_speed_to_fit_duration(synthesized_audio, start_time_ms, end_time_ms, 
     # Create a temporary output file
     temp_out_filename = temp_in_filename.replace('.wav', f'_adjusted_{segment_id}.wav')
 
-    # Build the FFmpeg command
-    # The 'atempo' filter allows speed adjustment without changing pitch
-    # 'atempo' supports speed factors between 0.5 and 2.0
-    # For speed factors outside this range, chain multiple 'atempo' filters
-
-    # Calculate the atempo factors
-    speed_factor = 1 / speed  # Adjusting to match target duration
-    if speed_factor <= 0:
-        speed_factor = 0.01  # Prevent division by zero or negative speeds
-
-    atempo_filters = []
-    while speed_factor > 2.0:
-        atempo_filters.append('atempo=2.0')
-        speed_factor /= 2.0
-    while speed_factor < 0.5:
-        atempo_filters.append('atempo=0.5')
-        speed_factor /= 0.5
-    atempo_filters.append(f'atempo={speed_factor}')
-
-    # Combine the atempo filters
-    atempo_filter_str = ','.join(atempo_filters)
-
+    # Build the FFmpeg command using the rubberband filter
     command = [
         'ffmpeg',
         '-y',  # Overwrite output file
         '-i', temp_in_filename,
-        '-filter:a', atempo_filter_str,
+        '-filter:a', f"rubberband=tempo={time_stretch_ratio}",
         temp_out_filename
     ]
 
@@ -403,18 +386,59 @@ def adjust_speed_to_fit_duration(synthesized_audio, start_time_ms, end_time_ms, 
     os.remove(temp_in_filename)
     os.remove(temp_out_filename)
 
-    # Trim or pad the audio to match the target duration
+    # Double-check the duration
     adjusted_duration_ms = len(adjusted_synthesized_audio)
-    if adjusted_duration_ms > target_duration_ms:
-        # Trim the audio
-        adjusted_synthesized_audio = adjusted_synthesized_audio[:target_duration_ms]
-    elif adjusted_duration_ms < target_duration_ms:
-        # Pad the audio with silence
-        silence_duration_ms = target_duration_ms - adjusted_duration_ms
-        silence = AudioSegment.silent(duration=silence_duration_ms)
-        adjusted_synthesized_audio += silence
+    duration_difference_ms = abs(adjusted_duration_ms - target_duration_ms)
+
+    # If there's a minor discrepancy, adjust by trimming or padding
+    # if duration_difference_ms > 10:  # Allow a small tolerance
+    #     if adjusted_duration_ms > target_duration_ms:
+    #         # Trim the audio
+    #         adjusted_synthesized_audio = adjusted_synthesized_audio[:target_duration_ms]
+    #     else:
+    #         # Pad the audio with silence
+    #         silence_duration_ms = target_duration_ms - adjusted_duration_ms
+    #         silence = AudioSegment.silent(duration=silence_duration_ms)
+    #         adjusted_synthesized_audio += silence
 
     return adjusted_synthesized_audio
+
+# def adjust_speed_to_fit_duration(synthesized_audio, start_time_ms, end_time_ms, segment_id):
+#     import numpy as np
+#     import librosa
+#     from pydub import AudioSegment
+
+#     # Calculate target and current durations in seconds
+#     target_duration_sec = (end_time_ms - start_time_ms) / 1000.0
+#     current_duration_sec = len(synthesized_audio) / 1000.0
+
+#     if current_duration_sec == 0 or current_duration_sec == target_duration_sec:
+#         return synthesized_audio
+
+#     # Calculate the time-stretch rate
+#     if current_duration_sec != 0 and target_duration_sec != 0:
+#         rate = current_duration_sec / target_duration_sec
+#     else:
+#         rate = 1.0
+
+#     # Convert AudioSegment to numpy array
+#     y = np.array(synthesized_audio.get_array_of_samples()).astype(np.float32)
+#     sr = synthesized_audio.frame_rate
+
+#     # Time-stretch using librosa
+#     y_stretched = librosa.effects.time_stretch(y, rate=rate)
+
+#     # Convert back to AudioSegment
+#     adjusted_synthesized_audio = AudioSegment(
+#         y_stretched.tobytes(),
+#         frame_rate=sr,
+#         sample_width=synthesized_audio.sample_width,
+#         channels=synthesized_audio.channels
+#     )
+
+#     return adjusted_synthesized_audio
+
+
 
 
 def trim_silence(audio_segment, silence_thresh=-50.0, chunk_size=10):
