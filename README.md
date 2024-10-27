@@ -4,7 +4,7 @@ An advanced AI-powered tool that automatically translates and dubs YouTube video
 
 ## Features
 
-- **Automatic Video Processing**: Downloads YouTube videos and extracts audio automatically
+- **Automatic Video Processing**: Downloads YouTube videos using [yt-dlp](https://github.com/yt-dlp/yt-dlp) and extracts audio automatically
 - **Speech Recognition**: Uses [Whisper AI](https://github.com/openai/whisper) for accurate speech-to-text transcription
 - **Voice Separation**: Splits original audio into vocal and instrumental tracks using [Spleeter](https://github.com/deezer/spleeter)
 - **Neural Translation**: Supports high-quality translation through [DeepL](https://www.deepl.com) API
