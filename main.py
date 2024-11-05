@@ -46,7 +46,7 @@ if __name__ == '__main__':
     total_segments = len(segments)
     for segment in segments:
         if len(segment['text']) > 0:
-            translated_text = translate_deepl(segment['text'], 'es', detected_language)
+            translated_text = translate_deepl(segment['text'], 'pt-br', detected_language)
         else:
             translated_text = ''
         new_segments.append({'id': segment['id'], 
@@ -74,7 +74,7 @@ if __name__ == '__main__':
         new_segments = pickle.load(f)
 
     # Synthesize audio
-    target_lang_code = "es"
+    target_lang_code = "pt-br"
 
     synthesized_segments_paths = synthesize_segments_with_workers(
         segments=new_segments,

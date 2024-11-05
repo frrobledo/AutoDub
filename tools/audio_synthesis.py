@@ -454,3 +454,85 @@ def trim_silence(audio_segment, silence_thresh=-50.0, chunk_size=10):
         return audio_segment[start_trim:end_trim]
     else:
         return audio_segment
+
+def adjust_background_music(background_audio, translated_audio_segments):
+    """
+    Adjust the background music based on the translated audio segments.
+
+    Parameters
+    ----------
+    background_audio : AudioSegment
+        The original background audio.
+    translated_audio_segments : list of AudioSegment
+        The list of translated audio segments.
+
+    Returns
+    -------
+    adjusted_background_audio : AudioSegment
+        The adjusted background audio.
+    """
+    adjusted_background_audio = background_audio
+
+    for segment in translated_audio_segments:
+        # Adjust volume, tempo, or other parameters based on the segment
+        # Example: Reduce background music volume during speech segments
+        adjusted_background_audio = adjusted_background_audio.overlay(segment, gain_during_overlay=-10)
+
+    return adjusted_background_audio
+
+def apply_seamless_transitions(audio_segments):
+    """
+    Apply seamless transitions between different audio segments.
+
+    Parameters
+    ----------
+    audio_segments : list of AudioSegment
+        The list of audio segments.
+
+    Returns
+    -------
+    seamless_audio : AudioSegment
+        The audio with seamless transitions.
+    """
+    seamless_audio = AudioSegment.empty()
+
+    for segment in audio_segments:
+        # Apply fade-in and fade-out effects for seamless transitions
+        segment = segment.fade_in(100).fade_out(100)
+        seamless_audio += segment
+
+    return seamless_audio
+
+def reduce_background_noise(audio_segment):
+    """
+    Reduce background noise in the given audio segment.
+
+    Parameters
+    ----------
+    audio_segment : AudioSegment
+        The audio segment to reduce background noise.
+
+    Returns
+    -------
+    denoised_audio : AudioSegment
+        The audio segment with reduced background noise.
+    """
+    import noisereduce as nr
+    import numpy as np
+
+    # Convert AudioSegment to numpy array
+    y = np.array(audio_segment.get_array_of_samples()).astype(np.float32)
+    sr = audio_segment.frame_rate
+
+    # Apply noise reduction
+    denoised_y = nr.reduce_noise(y=y, sr=sr)
+
+    # Convert back to AudioSegment
+    denoised_audio = AudioSegment(
+        denoised_y.tobytes(),
+        frame_rate=sr,
+        sample_width=audio_segment.sample_width,
+        channels=audio_segment.channels
+    )
+
+    return denoised_audio
